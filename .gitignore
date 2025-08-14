@@ -1,0 +1,411 @@
+# =============================================================================
+# GITIGNORE для проекта "Агент анализа документов и выявления рисков"
+# Защищает конфиденциальную информацию от случайного коммита
+# =============================================================================
+
+# =============================================================================
+# КОНФИДЕНЦИАЛЬНЫЕ ДАННЫЕ И КОНФИГУРАЦИЯ
+# =============================================================================
+
+# API ключи и конфиденциальные настройки
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+*.env
+
+# Конфигурационные файлы с API ключами
+config.py
+config_local.py
+config_production.py
+config_development.py
+secrets.py
+credentials.py
+
+# Файлы с переменными окружения
+.envrc
+.direnv
+
+# =============================================================================
+# ДОКУМЕНТЫ И ДАННЫЕ ДЛЯ АНАЛИЗА
+# =============================================================================
+
+# Папка с документами для анализа (может содержать конфиденциальную информацию)
+documents/
+documents/*
+!documents/.gitkeep
+
+# Временные файлы загрузки
+temp_uploads/
+temp_uploads/*
+!temp_uploads/.gitkeep
+
+# Загруженные файлы
+uploads/
+uploads/*
+!uploads/.gitkeep
+
+# =============================================================================
+# ОТЧЕТЫ И РЕЗУЛЬТАТЫ АНАЛИЗА
+# =============================================================================
+
+# Папка с отчетами (содержит результаты анализа документов)
+reports/
+reports/*
+!reports/.gitkeep
+
+# Папка с логами (может содержать конфиденциальную информацию)
+logs/
+logs/*
+!logs/.gitkeep
+
+# Временные файлы отчетов
+*.report
+*.analysis
+*.json
+*.txt
+!requirements.txt
+!README.md
+
+# =============================================================================
+# ПРОМПТЫ И ПРОМПТЫ ДЛЯ LLM
+# =============================================================================
+
+# Промпты могут содержать специфичные для компании инструкции
+promts/
+promts/*
+!promts/.gitkeep
+
+# =============================================================================
+# ПРОГРАММНЫЕ ФАЙЛЫ И КОД
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# =============================================================================
+# СИСТЕМНЫЕ ФАЙЛЫ
+# =============================================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# IDE И РЕДАКТОРЫ
+# =============================================================================
+
+# Visual Studio Code
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# ВРЕМЕННЫЕ ФАЙЛЫ И КЭШ
+# =============================================================================
+
+# Временные файлы
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+
+# Кэш
+.cache/
+cache/
+*.cache
+
+# Временные папки
+tmp/
+temp/
+.tmp/
+.temp/
+
+# =============================================================================
+# БЕЗОПАСНОСТЬ И АУДИТ
+# =============================================================================
+
+# Файлы аудита безопасности
+security_audit/
+vulnerability_scan/
+penetration_test/
+
+# Файлы с хешами и контрольными суммами
+*.md5
+*.sha1
+*.sha256
+checksums.txt
+
+# Файлы бэкапов
+backup/
+backups/
+*.backup
+*.bak
+
+# =============================================================================
+# СПЕЦИФИЧНЫЕ ДЛЯ ПРОЕКТА
+# =============================================================================
+
+# Модели машинного обучения (если есть)
+models/weights/
+models/checkpoints/
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.onnx
+*.pb
+*.tflite
+
+# Векторные базы данных
+vector_db/
+embeddings/
+*.faiss
+*.index
+
+# Файлы сессий
+session_data/
+user_sessions/
+*.session
+
+# Файлы конфигурации пользователей
+user_config/
+personal_settings/
+*.user
+
+# =============================================================================
+# ИСКЛЮЧЕНИЯ (файлы, которые НУЖНО коммитить)
+# =============================================================================
+
+# Не игнорировать пустые папки
+!documents/.gitkeep
+!reports/.gitkeep
+!logs/.gitkeep
+!temp_uploads/.gitkeep
+!promts/.gitkeep
+
+# Не игнорировать примеры конфигурации
+!config.example.py
+!config.template.py
+
+# Не игнорировать документацию
+!README.md
+!CHANGELOG.md
+!LICENSE
+!*.md
+
+# Не игнорировать зависимости
+!requirements.txt
+!requirements-dev.txt
+!setup.py
+!pyproject.toml
+
+# Не игнорировать основные скрипты
+!run.py
+!run_jupyter.py
+!start_agent.ipynb
+!start_analysis.ipynb
