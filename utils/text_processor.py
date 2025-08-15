@@ -16,13 +16,26 @@ class TextProcessor:
         self.max_chars_per_chunk = max_chars_per_chunk
         self.batch_size = batch_size
         
-        # Инициализируем сплиттер для больших документов
+        # ИСПРАВЛЕНО: Правильные настройки сплиттера
         self.splitter = RecursiveCharacterTextSplitter(
-            separators=[".", "?", "!", "|", "\n\n", "\n", " "],
+            separators=[
+                "\n\n",    # Сначала разделяем по абзацам
+                "\n",      # Потом по строкам
+                ". ",      # Потом по предложениям (с пробелом!)
+                "? ",      # Вопросительные предложения
+                "! ",      # Восклицательные предложения
+                "; ",      # Точка с запятой
+                ": ",      # Двоеточие
+                ", ",      # Запятые (осторожно с этим)
+                " ",       # Пробелы
+                ""         # В крайнем случае - любой символ
+            ],
             chunk_size=max_chars_per_chunk,
-            chunk_overlap=0,
+            chunk_overlap=500,  # ДОБАВЛЕНО: перекрытие для сохранения контекста!
             is_separator_regex=False,
         )
+        
+        logger.info(f"TextProcessor инициализирован с chunk_size={max_chars_per_chunk}, overlap=500")
     
     def process_documents(self, documents: List[Document]) -> List[Document]:
         """
@@ -40,41 +53,56 @@ class TextProcessor:
         for doc in documents:
             if self.splitter._length_function(doc.page_content.strip()) > self.max_chars_per_chunk:
                 long_docs.append(doc)
+                logger.debug(f"Документ {doc.metadata.get('name', 'Unknown')} помечен как большой ({len(doc.page_content)} символов)")
             else:
                 short_docs.append(doc)
         
         # Разбиваем большие документы на чанки
-        long_chunks = self.splitter.split_documents(documents=long_docs)
+        long_chunks = []
+        if long_docs:
+            logger.info(f"Разбиваем {len(long_docs)} больших документов на чанки")
+            long_chunks = self.splitter.split_documents(documents=long_docs)
+            logger.info(f"Получено {len(long_chunks)} чанков из больших документов")
         
         # Группируем маленькие документы
         short_chunks = []
         if short_docs:
+            logger.info(f"Группируем {len(short_docs)} маленьких документов")
             # Форматируем маленькие документы
             formatted_short_docs = []
             for doc in short_docs:
-                formatted_content = f"==================== ДОКУМЕНТ: {doc.metadata.get('name', doc.metadata.get('source', 'Неизвестно'))} ====================\n\n{doc.page_content.strip()}"
+                # Убираем излишние переносы строк и пробелы
+                cleaned_content = self.clean_text(doc.page_content.strip())
+                formatted_content = f"==================== ДОКУМЕНТ: {doc.metadata.get('name', doc.metadata.get('source', 'Неизвестно'))} ====================\n\n{cleaned_content}"
                 formatted_short_docs.append(formatted_content)
             
             # Группируем в чанки
-            short_chunks = self._merge_splits(formatted_short_docs, separator="\n")
-            short_chunks = [Document(page_content=chunk, metadata=doc.metadata) for chunk in short_chunks]
+            short_chunks = self._merge_splits(formatted_short_docs, separator="\n\n")
+            short_chunks = [Document(page_content=chunk, metadata=short_docs[0].metadata) for chunk in short_chunks]
+            logger.info(f"Получено {len(short_chunks)} чанков из маленьких документов")
         
-        return long_chunks + short_chunks
+        total_chunks = long_chunks + short_chunks
+        logger.info(f"Итого чанков: {len(total_chunks)}")
+        return total_chunks
     
-    def _merge_splits(self, splits: List[str], separator: str = "\n") -> List[str]:
+    def _merge_splits(self, splits: List[str], separator: str = "\n\n") -> List[str]:
         """
         Объединяет маленькие сплиты в чанки оптимального размера
+        ИСПРАВЛЕНО: учитываем overlap при группировке
         """
         merged_chunks = []
         current_chunk = []
         current_length = 0
         
+        # Оставляем место для overlap
+        effective_chunk_size = self.max_chars_per_chunk - 500  # Резерв для overlap
+        
         for split in splits:
             split_length = len(split)
             
-            if current_length + split_length <= self.max_chars_per_chunk:
+            if current_length + split_length <= effective_chunk_size:
                 current_chunk.append(split)
-                current_length += split_length
+                current_length += split_length + len(separator)  # +separator length
             else:
                 if current_chunk:
                     merged_chunks.append(separator.join(current_chunk))
@@ -89,28 +117,86 @@ class TextProcessor:
     def group_texts(self, texts: List[str], max_chars_per_chunk: int = None) -> List[List[str]]:
         """
         Группирует тексты в чанки по размеру для предотвращения переполнения контекста модели
+        ИСПРАВЛЕНО: учитываем overlap
         """
         if max_chars_per_chunk is None:
             max_chars_per_chunk = self.max_chars_per_chunk
+        
+        # Оставляем место для overlap
+        effective_chunk_size = max_chars_per_chunk - 500
             
         grouped_chunks: List[List[str]] = []
         current_chunk = []
         current_len = 0
         
         for text in texts:
-            if current_len + len(text) <= max_chars_per_chunk:
+            text_len = len(text)
+            
+            # Если один текст больше effective_chunk_size, разбиваем его
+            if text_len > effective_chunk_size:
+                logger.warning(f"Текст длиной {text_len} превышает размер чанка, будет разбит")
+                
+                # Сохраняем текущий чанк если есть
+                if current_chunk:
+                    grouped_chunks.append(current_chunk)
+                    current_chunk = []
+                    current_len = 0
+                
+                # Разбиваем большой текст
+                split_texts = self._split_large_text(text, effective_chunk_size)
+                for split_text in split_texts:
+                    grouped_chunks.append([split_text])
+                
+                continue
+            
+            if current_len + text_len <= effective_chunk_size:
                 current_chunk.append(text)
-                current_len += len(text)
+                current_len += text_len
             else:
                 if current_chunk:
                     grouped_chunks.append(current_chunk)
                 current_chunk = [text]
-                current_len = len(text)
+                current_len = text_len
         
         if current_chunk:
             grouped_chunks.append(current_chunk)
-            
+        
+        logger.info(f"Тексты сгруппированы в {len(grouped_chunks)} чанков")
         return grouped_chunks
+    
+    def _split_large_text(self, text: str, max_size: int) -> List[str]:
+        """
+        Разбивает большой текст на части с учетом overlap
+        """
+        if len(text) <= max_size:
+            return [text]
+        
+        chunks = []
+        start = 0
+        overlap = 500
+        
+        while start < len(text):
+            end = start + max_size
+            
+            if end >= len(text):
+                # Последний чанк
+                chunks.append(text[start:])
+                break
+            
+            # Ищем подходящее место для разреза (по предложению)
+            cut_point = end
+            for sep in [". ", ".\n", "! ", "!\n", "? ", "?\n"]:
+                last_sep = text.rfind(sep, start, end)
+                if last_sep > start + max_size // 2:  # Не слишком близко к началу
+                    cut_point = last_sep + len(sep)
+                    break
+            
+            chunks.append(text[start:cut_point])
+            
+            # Следующий чанк начинается с overlap
+            start = max(cut_point - overlap, start + 1)
+        
+        return chunks
     
     async def map_async_generator(
         self, 
@@ -202,22 +288,24 @@ class TextProcessor:
     def trim_text(self, text: str, max_length: int) -> str:
         """
         Умная обрезка текста до максимальной длины с сохранением целостности
+        ИСПРАВЛЕНО: не обрезаем в середине предложения
         """
         if len(text) <= max_length:
             return text
         
         # Пытаемся обрезать по предложениям
-        sentences = text.split('. ')
+        sentences = re.split(r'(?<=[.!?])\s+', text)
         result = ""
         
         for sentence in sentences:
-            if len(result + sentence + '. ') <= max_length:
-                result += sentence + '. '
+            if len(result + sentence + ' ') <= max_length:
+                result += sentence + ' '
             else:
                 break
         
-        if not result:
-            # Если не удалось обрезать по предложениям, обрезаем по словам
+        if not result or len(result) < max_length * 0.5:
+            # Если не удалось обрезать по предложениям или результат слишком короткий
+            # обрезаем по словам, но не в середине слова
             words = text.split()
             result = ""
             for word in words:
@@ -231,12 +319,18 @@ class TextProcessor:
     def clean_text(self, text: str) -> str:
         """
         Очищает текст от лишних символов и форматирования
+        УЛУЧШЕНО: лучшая очистка с сохранением структуры
         """
-        # Убираем множественные пробелы
-        text = re.sub(r'\s+', ' ', text)
+        # Убираем множественные пробелы, но сохраняем структуру
+        text = re.sub(r'[ \t]+', ' ', text)  # Множественные пробелы и табы
         
-        # Убираем множественные переносы строк
-        text = re.sub(r'\n+', '\n', text)
+        # Убираем множественные переносы строк, но сохраняем абзацы
+        text = re.sub(r'\n{3,}', '\n\n', text)  # Более 2 переносов -> 2
+        text = re.sub(r'\n\s*\n', '\n\n', text)  # Переносы с пробелами между
+        
+        # Убираем пробелы в начале и конце строк
+        lines = [line.strip() for line in text.split('\n')]
+        text = '\n'.join(lines)
         
         # Убираем лишние пробелы в начале и конце
         text = text.strip()
@@ -283,3 +377,29 @@ class TextProcessor:
         text = re.sub(r'\s+', ' ', text).strip()
         
         return text
+    
+    def get_chunk_info(self, text: str) -> dict:
+        """
+        Возвращает информацию о том, как будет разбит текст
+        """
+        if len(text) <= self.max_chars_per_chunk:
+            return {
+                "will_be_split": False,
+                "total_length": len(text),
+                "estimated_chunks": 1,
+                "chunk_size": self.max_chars_per_chunk,
+                "overlap": 500
+            }
+        
+        # Прогнозируем количество чанков
+        effective_size = self.max_chars_per_chunk - 500  # Учитываем overlap
+        estimated_chunks = max(1, (len(text) - 500) // effective_size + 1)
+        
+        return {
+            "will_be_split": True,
+            "total_length": len(text),
+            "estimated_chunks": estimated_chunks,
+            "chunk_size": self.max_chars_per_chunk,
+            "overlap": 500,
+            "effective_chunk_size": effective_size
+        }
