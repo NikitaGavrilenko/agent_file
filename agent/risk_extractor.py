@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema import StrOutputParser
@@ -140,7 +141,10 @@ class RiskExtractor:
 
     
     def _enrich_risk_data(self, risk_data: Dict[str, Any], documents: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Дополняет данные риска недостающими полями"""
+        """
+        Дополняет данные риска недостающими полями
+        ИСПРАВЛЕНО: корректно определяем source_document
+        """
         # Нормализация категории
         if "category" in risk_data:
             category_mapping = {
@@ -151,7 +155,6 @@ class RiskExtractor:
             }
             risk_data["category"] = category_mapping.get(risk_data["category"], risk_data["category"])
     
-   
         # Устанавливаем ID если его нет
         if "id" not in risk_data:
             risk_data["id"] = str(uuid.uuid4())
@@ -160,9 +163,31 @@ class RiskExtractor:
         if "created_at" not in risk_data:
             risk_data["created_at"] = datetime.now().isoformat()
         
-        # Устанавливаем источник документа если его нет
+        # ИСПРАВЛЕНО: Устанавливаем источник документа корректно
         if "source_document" not in risk_data and documents:
-            risk_data["source_document"] = documents[0].get("name", "Unknown")
+            # Ищем оригинальное имя файла
+            first_doc = documents[0]
+            
+            # Если есть оригинальные документы, берем из них
+            if "original_documents" in first_doc and first_doc["original_documents"]:
+                original_doc = first_doc["original_documents"][0]
+                source_name = original_doc.get("name", "Unknown")
+            else:
+                # Иначе берем имя из документа, очищая от мета-информации
+                source_name = first_doc.get("name", "Unknown")
+            
+            # Очищаем имя от групповых префиксов
+            if source_name.startswith("Группа_") and "_Документ_" in source_name:
+                # Это временное имя группы, пытаемся найти оригинальное
+                if documents and len(documents) > 0:
+                    # Ищем файл с расширением в file_path
+                    file_path = first_doc.get("file_path", "")
+                    if file_path and file_path != "unknown":
+                        source_name = Path(file_path).name
+                    else:
+                        source_name = "Unknown"
+            
+            risk_data["source_document"] = source_name
         
         # Устанавливаем тип по умолчанию если его нет
         if "type" not in risk_data:
@@ -193,6 +218,50 @@ class RiskExtractor:
             risk_data["probability"] = "Средняя"
         
         return risk_data
+    
+    def _extract_original_filename(self, documents: List[Dict[str, Any]]) -> str:
+        """
+        Извлекает оригинальное имя файла из документов
+        """
+        if not documents:
+            return "Unknown"
+        
+        first_doc = documents[0]
+        
+        # Проверяем наличие оригинального документа
+        if "original_document" in first_doc and first_doc["original_document"]:
+            original_doc = first_doc["original_document"]
+            name = original_doc.get("name", "Unknown")
+            if name != "Unknown":
+                return name
+        
+        # Проверяем имя документа напрямую
+        name = first_doc.get("name", "Unknown")
+        
+        # Если это не временное имя группы, возвращаем как есть
+        if not (name.startswith("Группа_") and "_Документ_" in name):
+            return name
+        
+        # Пытаемся извлечь из file_path
+        file_path = first_doc.get("file_path", "")
+        if file_path and file_path != "unknown" and not file_path.startswith("grouped_"):
+            return Path(file_path).name
+        
+        # Последняя попытка - ищем реальное имя файла в метаданных всех документов
+        for doc in documents:
+            # Проверяем original_document
+            if "original_document" in doc and doc["original_document"]:
+                orig_name = doc["original_document"].get("name", "")
+                if orig_name and orig_name != "Unknown":
+                    return orig_name
+            
+            # Проверяем file_path
+            if "file_path" in doc and doc["file_path"] != "unknown":
+                path = Path(doc["file_path"])
+                if path.suffix:  # Если есть расширение файла
+                    return path.name
+        
+        return "Unknown"
     
     async def extract_risks_from_single_document(
         self, 

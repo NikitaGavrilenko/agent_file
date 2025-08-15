@@ -220,10 +220,33 @@ class DocumentAnalyzer:
     ) -> List[Risk]:
         """
         Извлекает риски с поддержкой чанкинга для больших документов
+        ИСПРАВЛЕНО: сохраняем оригинальные имена файлов
         """
         all_risks = []
         
-        # Группируем документы по размеру для оптимальной обработки
+        # Если документов немного, обрабатываем напрямую без группировки
+        if len(documents) <= 10:
+            # Обрабатываем документы напрямую, сохраняя их имена
+            for doc in documents:
+                doc_for_processing = {
+                    "name": doc.get("name", "Unknown"),
+                    "content": doc.get("content", ""),
+                    "file_path": doc.get("file_path", "unknown"),
+                    "file_type": doc.get("file_type", "unknown"),
+                    "original_document": doc  # Сохраняем ссылку на оригинальный документ
+                }
+                
+                try:
+                    doc_risks = await self.risk_extractor.extract_risks_from_single_document(doc_for_processing, question_topic)
+                    all_risks.extend(doc_risks)
+                    logger.info(f"Из документа {doc.get('name', 'Unknown')} извлечено {len(doc_risks)} рисков")
+                except Exception as e:
+                    logger.warning(f"Ошибка при обработке документа {doc.get('name', 'Unknown')}: {e}")
+                    continue
+            
+            return all_risks
+        
+        # Для большого количества документов используем группировку
         grouped_docs = self.text_processor.group_texts(
             [doc['content'] for doc in documents], 
             self.max_chars_per_chunk
@@ -231,18 +254,27 @@ class DocumentAnalyzer:
         
         logger.info(f"Документы сгруппированы в {len(grouped_docs)} групп для обработки")
         
-        # Обрабатываем каждую группу
+        # Создаем мапинг контента к оригинальным документам
+        content_to_doc = {}
+        for doc in documents:
+            content_to_doc[doc['content']] = doc
+        
         for i, doc_group in enumerate(grouped_docs):
             logger.info(f"Обрабатываем группу документов {i+1}/{len(grouped_docs)}")
             
-            # Создаем временные документы для группы
+            # Создаем временные документы для группы, сохраняя связь с оригиналами
             temp_docs = []
+            
             for j, content in enumerate(doc_group):
+                # Находим оригинальный документ для этого контента
+                original_doc = content_to_doc.get(content, {"name": "Unknown", "file_path": "unknown"})
+                
                 temp_docs.append({
-                    "name": f"Группа_{i+1}_Документ_{j+1}",
+                    "name": original_doc.get("name", "Unknown"),
                     "content": content,
-                    "file_path": f"grouped_{i+1}",
-                    "file_type": "grouped"
+                    "file_path": original_doc.get("file_path", "unknown"),
+                    "file_type": original_doc.get("file_type", "unknown"),
+                    "original_document": original_doc  # Передаем оригинальный документ
                 })
             
             # Извлекаем риски из группы
